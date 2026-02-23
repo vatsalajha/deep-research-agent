@@ -17,16 +17,19 @@ def test_imports():
                 "create_report_generator",
             ],
         ),
-        "src.agent (DeepResearchAgent)": lambda: __import__("src.agent", fromlist=["DeepResearchAgent"]),
+        "src.agent (DeepResearchAgent)": lambda: __import__(
+            "src.agent",
+            fromlist=["DeepResearchAgent", "PROVIDER_MODELS", "PROVIDER_ENV_KEYS"],
+        ),
     }
 
     all_ok = True
     for name, importer in modules.items():
         try:
             importer()
-            print(f"  \u2705 {name}")
+            print(f"  [OK] {name}")
         except Exception as e:
-            print(f"  \u274c {name} — {e}")
+            print(f"  [FAIL] {name} -- {e}")
             all_ok = False
 
     print()
@@ -40,15 +43,25 @@ def test_environment():
 
     try:
         env = load_environment()
-        masked_groq = "***" + env["groq_api_key"][-4:]
-        masked_tavily = "***" + env["tavily_api_key"][-4:]
-        print(f"  \u2705 Environment loaded")
-        print(f"     Groq key:   {masked_groq}")
-        print(f"     Tavily key: {masked_tavily}")
+        found = []
+        for key_name, value in sorted(env.items()):
+            if value:
+                masked = "***" + value[-4:]
+                print(f"  [OK] {key_name}: {masked}")
+                found.append(key_name)
+            else:
+                print(f"  [--] {key_name}: not set")
+
+        if not found:
+            print("  [FAIL] No API keys found at all")
+            print()
+            return False
+
+        print(f"\n  Found {len(found)} key(s)")
         print()
         return True
     except ValueError as e:
-        print(f"  \u274c {e}")
+        print(f"  [FAIL] {e}")
         print()
         return False
 
@@ -61,20 +74,26 @@ def test_tools():
 
     try:
         env = load_environment()
-        tool = WebSearchTool(env["tavily_api_key"])
+        tavily_key = env.get("tavily_api_key")
+        if not tavily_key:
+            print("  [SKIP] No Tavily API key found")
+            print()
+            return True
+
+        tool = WebSearchTool(tavily_key)
         results = tool.search("Python programming", max_results=2)
 
         if results:
-            print(f"  \u2705 Search returned {len(results)} results")
+            print(f"  [OK] Search returned {len(results)} results")
             for r in results:
                 print(f"     - {r['title'][:60]}")
         else:
-            print("  \u26a0\ufe0f  Search returned no results (API may be rate-limited)")
+            print("  [WARN] Search returned no results (API may be rate-limited)")
 
         print()
         return True
     except Exception as e:
-        print(f"  \u274c Search failed — {e}")
+        print(f"  [FAIL] Search failed -- {e}")
         print()
         return False
 
@@ -82,22 +101,59 @@ def test_tools():
 def test_agent_init():
     """Test that the agent initializes and the graph compiles."""
     print("Testing agent initialization...")
-    from src.agent import DeepResearchAgent
+    from src.agent import DeepResearchAgent, PROVIDER_MODELS, PROVIDER_ENV_KEYS
     from src.utils import load_environment
 
     try:
         env = load_environment()
+
+        # Auto-detect first available LLM provider
+        provider = None
+        api_key = None
+        for p in PROVIDER_MODELS:
+            key_name = f"{p}_api_key"
+            if env.get(key_name):
+                provider = p
+                api_key = env[key_name]
+                break
+
+        if not provider:
+            print("  [FAIL] No LLM provider key found")
+            print()
+            return False
+
+        tavily_key = env.get("tavily_api_key")
+        if not tavily_key:
+            print("  [FAIL] No Tavily API key found")
+            print()
+            return False
+
+        print(f"  Using provider: {provider}")
+
         agent = DeepResearchAgent(
-            groq_api_key=env["groq_api_key"],
-            tavily_key=env["tavily_api_key"],
+            llm_provider=provider,
+            llm_api_key=api_key,
+            search_api_key=tavily_key,
             max_iterations=2,
         )
-        print(f"  \u2705 DeepResearchAgent created")
-        print(f"  \u2705 Graph compiled ({len(agent.graph.nodes)} nodes)")
+        print(f"  [OK] DeepResearchAgent created")
+        print(f"  [OK] Graph compiled ({len(agent.graph.nodes)} nodes)")
+
+        # Also verify backward-compat constructor works
+        if env.get("groq_api_key"):
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                compat_agent = DeepResearchAgent(
+                    groq_api_key=env["groq_api_key"],
+                    tavily_key=tavily_key,
+                )
+            print(f"  [OK] Backward-compatible constructor works")
+
         print()
         return True
     except Exception as e:
-        print(f"  \u274c Agent init failed — {e}")
+        print(f"  [FAIL] Agent init failed -- {e}")
         print()
         return False
 
@@ -110,26 +166,44 @@ def test_templates():
     all_ok = True
     for style in ["detailed", "summary", "academic"]:
         if style in TEMPLATES and style in VALID_STYLES:
-            print(f"  \u2705 '{style}' template available")
+            print(f"  [OK] '{style}' template available")
         else:
-            print(f"  \u274c '{style}' template missing")
+            print(f"  [FAIL] '{style}' template missing")
             all_ok = False
 
     # Verify invalid style is rejected
-    from src.agent import DeepResearchAgent
+    from src.agent import DeepResearchAgent, PROVIDER_MODELS
     from src.utils import load_environment
 
     env = load_environment()
+
+    # Auto-detect provider for this test
+    provider = None
+    api_key = None
+    for p in PROVIDER_MODELS:
+        key_name = f"{p}_api_key"
+        if env.get(key_name):
+            provider = p
+            api_key = env[key_name]
+            break
+
+    tavily_key = env.get("tavily_api_key")
+    if not provider or not tavily_key:
+        print("  [SKIP] No provider/search key for style rejection test")
+        print()
+        return all_ok
+
     agent = DeepResearchAgent(
-        groq_api_key=env["groq_api_key"],
-        tavily_key=env["tavily_api_key"],
+        llm_provider=provider,
+        llm_api_key=api_key,
+        search_api_key=tavily_key,
     )
     try:
         agent.run("test", report_style="nonexistent")
-        print("  \u274c Invalid style was not rejected")
+        print("  [FAIL] Invalid style was not rejected")
         all_ok = False
     except ValueError:
-        print("  \u2705 Invalid style correctly rejected")
+        print("  [OK] Invalid style correctly rejected")
 
     print()
     return all_ok
@@ -153,9 +227,9 @@ def main():
     total = len(results)
 
     if all(results):
-        print(f"\u2705 All {total} tests passed!")
+        print(f"All {total} tests passed!")
     else:
-        print(f"\u26a0\ufe0f  {passed}/{total} tests passed")
+        print(f"{passed}/{total} tests passed")
     print("=" * 70)
 
 

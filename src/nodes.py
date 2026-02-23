@@ -3,14 +3,26 @@
 import json
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.state import AgentState
 from src.templates import TEMPLATES
 from src.tools import WebSearchTool
 
 
-def create_query_analyzer(llm: BaseChatModel):
+def _build_messages(
+    prompt: str,
+    system_prompt: str | None = None,
+) -> list:
+    """Build a message list, optionally prepending a SystemMessage."""
+    messages: list = []
+    if system_prompt:
+        messages.append(SystemMessage(content=system_prompt))
+    messages.append(HumanMessage(content=prompt))
+    return messages
+
+
+def create_query_analyzer(llm: BaseChatModel, system_prompt: str | None = None):
     """Create the query analysis node.
 
     This is the first node in the graph. It takes the user's research
@@ -18,6 +30,7 @@ def create_query_analyzer(llm: BaseChatModel):
 
     Args:
         llm: A LangChain chat model instance.
+        system_prompt: Optional system prompt prepended to the LLM call.
 
     Returns:
         A node function that accepts and returns AgentState.
@@ -40,7 +53,7 @@ Respond ONLY with valid JSON (no markdown fencing):
     "search_queries": ["query1", "query2", "query3"]
 }}"""
 
-        response = llm.invoke([HumanMessage(content=prompt)])
+        response = llm.invoke(_build_messages(prompt, system_prompt))
 
         try:
             result = json.loads(response.content)
@@ -62,7 +75,7 @@ Respond ONLY with valid JSON (no markdown fencing):
     return query_analyzer
 
 
-def create_web_searcher(search_tool: WebSearchTool):
+def create_web_searcher(search_tool: WebSearchTool, max_results: int = 3):
     """Create the web search execution node.
 
     Runs searches for any queries that haven't been searched yet,
@@ -70,6 +83,7 @@ def create_web_searcher(search_tool: WebSearchTool):
 
     Args:
         search_tool: An initialized WebSearchTool instance.
+        max_results: Number of results to fetch per query (default 3).
 
     Returns:
         A node function that accepts and returns AgentState.
@@ -85,7 +99,7 @@ def create_web_searcher(search_tool: WebSearchTool):
 
         if new_queries:
             print(f"\nSearching for: {new_queries}")
-            new_results = search_tool.batch_search(new_queries, max_results=3)
+            new_results = search_tool.batch_search(new_queries, max_results=max_results)
             existing_results = {**existing_results, **new_results}
 
         total_sources = sum(len(v) for v in existing_results.values())
@@ -100,7 +114,7 @@ def create_web_searcher(search_tool: WebSearchTool):
     return web_searcher
 
 
-def create_synthesizer(llm: BaseChatModel):
+def create_synthesizer(llm: BaseChatModel, system_prompt: str | None = None):
     """Create the synthesis and gap-analysis node.
 
     After searches complete, this node asks the LLM to evaluate whether
@@ -109,6 +123,7 @@ def create_synthesizer(llm: BaseChatModel):
 
     Args:
         llm: A LangChain chat model instance.
+        system_prompt: Optional system prompt prepended to the LLM call.
 
     Returns:
         A node function that accepts and returns AgentState.
@@ -148,7 +163,7 @@ Respond ONLY with valid JSON (no markdown fencing):
     "additional_queries": ["query1", "query2"]
 }}"""
 
-        response = llm.invoke([HumanMessage(content=analysis_prompt)])
+        response = llm.invoke(_build_messages(analysis_prompt, system_prompt))
 
         try:
             analysis = json.loads(response.content)
@@ -187,7 +202,7 @@ Respond ONLY with valid JSON (no markdown fencing):
     return synthesizer
 
 
-def create_report_generator(llm: BaseChatModel):
+def create_report_generator(llm: BaseChatModel, system_prompt: str | None = None):
     """Create the final report generation node.
 
     This is the terminal node. It takes all accumulated search results,
@@ -196,6 +211,7 @@ def create_report_generator(llm: BaseChatModel):
 
     Args:
         llm: A LangChain chat model instance.
+        system_prompt: Optional system prompt prepended to the LLM call.
 
     Returns:
         A node function that accepts and returns AgentState.
@@ -246,7 +262,7 @@ AVAILABLE SOURCES FOR CITATIONS:
 
 {template_instructions}"""
 
-        response = llm.invoke([HumanMessage(content=report_prompt)])
+        response = llm.invoke(_build_messages(report_prompt, system_prompt))
         report = response.content
 
         # Append full source list
