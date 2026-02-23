@@ -37,3 +37,4 @@ class AgentState(TypedDict):
     final_report: NotRequired[str | None]
     sources: list[dict]
     research_complete: NotRequired[bool]
+    report_style: NotRequired[str]

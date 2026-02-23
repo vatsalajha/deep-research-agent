@@ -102,6 +102,39 @@ def test_agent_init():
         return False
 
 
+def test_templates():
+    """Test that report templates load and agent validates styles."""
+    print("Testing report templates...")
+    from src.templates import TEMPLATES, VALID_STYLES
+
+    all_ok = True
+    for style in ["detailed", "summary", "academic"]:
+        if style in TEMPLATES and style in VALID_STYLES:
+            print(f"  \u2705 '{style}' template available")
+        else:
+            print(f"  \u274c '{style}' template missing")
+            all_ok = False
+
+    # Verify invalid style is rejected
+    from src.agent import DeepResearchAgent
+    from src.utils import load_environment
+
+    env = load_environment()
+    agent = DeepResearchAgent(
+        anthropic_key=env["anthropic_api_key"],
+        tavily_key=env["tavily_api_key"],
+    )
+    try:
+        agent.run("test", report_style="nonexistent")
+        print("  \u274c Invalid style was not rejected")
+        all_ok = False
+    except ValueError:
+        print("  \u2705 Invalid style correctly rejected")
+
+    print()
+    return all_ok
+
+
 def main():
     print("=" * 70)
     print("DEEP RESEARCH AGENT — VALIDATION TESTS")
@@ -112,6 +145,7 @@ def main():
         test_environment(),
         test_tools(),
         test_agent_init(),
+        test_templates(),
     ]
 
     print("=" * 70)

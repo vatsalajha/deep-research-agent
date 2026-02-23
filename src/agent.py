@@ -12,6 +12,7 @@ from src.nodes import (
     create_web_searcher,
 )
 from src.state import AgentState
+from src.templates import VALID_STYLES
 from src.tools import WebSearchTool
 
 
@@ -81,15 +82,22 @@ class DeepResearchAgent:
 
         return graph.compile()
 
-    def run(self, query: str) -> dict:
+    def run(self, query: str, report_style: str = "detailed") -> dict:
         """Execute the research agent on a query.
 
         Args:
             query: The user's research question.
+            report_style: Report format — "detailed", "summary", or "academic".
 
         Returns:
             The final agent state containing the report, sources, and messages.
         """
+        if report_style not in VALID_STYLES:
+            raise ValueError(
+                f"Unknown report_style '{report_style}'. "
+                f"Choose from: {VALID_STYLES}"
+            )
+
         initial_state: AgentState = {
             "query": query,
             "messages": [HumanMessage(content=query)],
@@ -98,6 +106,7 @@ class DeepResearchAgent:
             "iterations": 0,
             "max_iterations": self.max_iterations,
             "sources": [],
+            "report_style": report_style,
         }
 
         print(f"\nStarting research on: {query}\n")

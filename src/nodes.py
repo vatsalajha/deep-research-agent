@@ -6,6 +6,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.state import AgentState
+from src.templates import TEMPLATES
 from src.tools import WebSearchTool
 
 
@@ -244,7 +245,11 @@ def create_report_generator(api_key: str):
             for result in results:
                 research_text += f"\n{result['title']}\n{result['content']}\n"
 
-        report_prompt = f"""You are an expert research analyst. Based on the following research, write a comprehensive report answering the query: "{original_query}"
+        # Select report template based on style
+        style = state.get("report_style", "detailed")
+        template_instructions = TEMPLATES.get(style, TEMPLATES["detailed"])
+
+        report_prompt = f"""You are an expert research analyst. Based on the following research, write a report answering the query: "{original_query}"
 
 RESEARCH DATA:
 {research_text}
@@ -252,18 +257,7 @@ RESEARCH DATA:
 AVAILABLE SOURCES FOR CITATIONS:
 {sources_text}
 
-Write a well-structured report with:
-1. Executive Summary (2-3 sentences)
-2. Key Findings (3-5 main points, each cited)
-3. Detailed Analysis (expand on key findings with evidence)
-4. Trends & Implications (what this means going forward)
-5. Sources (list all sources used with [citation number])
-
-Format:
-- Use clear sections with markdown headers
-- Cite sources as [1], [2], etc. when referencing information
-- Be objective and comprehensive
-- Include specific data points and examples"""
+{template_instructions}"""
 
         response = llm.invoke([HumanMessage(content=report_prompt)])
         report = response.content

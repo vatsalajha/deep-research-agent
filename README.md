@@ -96,6 +96,18 @@ print(report)
 agent.save_report(report, "my_report.md")
 ```
 
+### Choose a report style
+
+Three built-in templates are available: `detailed` (default), `summary`, and `academic`.
+
+```python
+# Quick executive briefing (under 500 words)
+result = agent.run("Impact of AI on healthcare", report_style="summary")
+
+# Formal academic-style report
+result = agent.run("Impact of AI on healthcare", report_style="academic")
+```
+
 ## Project Structure
 
 ```
@@ -115,6 +127,16 @@ deep-research-agent/
 ```
 
 ## Configuration
+
+### Report style
+
+```python
+# "detailed" (default) — full report with executive summary, findings, analysis
+# "summary"            — concise briefing under 500 words
+# "academic"           — formal paper with abstract, lit review, discussion
+
+result = agent.run("my query", report_style="academic")
+```
 
 ### Research depth
 
