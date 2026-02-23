@@ -2,13 +2,18 @@
 
 An intelligent research agent built with [LangGraph](https://github.com/langchain-ai/langgraph) that performs iterative web searches and synthesizes findings into comprehensive, cited reports.
 
+![UI Overview](assets/ui-overview.png)
+
 ## Features
 
 - **Multi-provider LLM support** — Groq, OpenAI, Anthropic, Google (Gemini), with easy extensibility for more
 - Intelligent query analysis — breaks complex questions into targeted search queries
 - Iterative web search with automatic gap detection via Tavily API
+- **Deep Browse mode** — extracts full page content from search result URLs for richer reports
 - LLM-powered synthesis that decides when research is sufficient
 - Comprehensive report generation with inline citations and source lists
+- **Persistent session history** — auto-saves research sessions, survives browser refresh
+- **Session management** — star, delete, search, export, and rerun past sessions
 - Fully configurable: LLM provider, model, temperature, system prompt, search results per query, max iterations
 - Multiple report styles: detailed, summary, academic
 
@@ -23,9 +28,21 @@ analyze_query → search → synthesize ─┬→ generate_report → END
 ```
 
 1. **Query Analyzer** — Breaks the user question into 3-5 specific search queries
-2. **Web Searcher** — Executes searches via Tavily, skips duplicates
+2. **Web Searcher** — Executes searches via Tavily, skips duplicates. Optionally extracts full page content (Deep Browse)
 3. **Synthesizer** — Evaluates coverage, identifies gaps, decides whether to loop back or proceed
 4. **Report Generator** — Produces a structured, cited report from all gathered research
+
+### Streamlit UI
+
+The web interface provides live progress tracking, session history, and full configurability.
+
+| Research in Progress | Report View |
+|:---:|:---:|
+| ![Research Progress](assets/research-progress.png) | ![Report View](assets/report-view.png) |
+
+| Session History & Actions |
+|:---:|
+| ![Session History](assets/session-history.png) |
 
 ## Prerequisites
 
@@ -148,15 +165,18 @@ result = agent.run("Impact of AI on healthcare", report_style="academic")
 deep-research-agent/
 ├── src/
 │   ├── agent.py        # DeepResearchAgent class + multi-provider LLM factory
+│   ├── sessions.py     # SessionManager for JSON-based session persistence
 │   ├── state.py        # AgentState TypedDict definition
 │   ├── nodes.py        # 4 node functions (analyze, search, synthesize, report)
-│   ├── tools.py        # WebSearchTool wrapper around Tavily (+ commented alternatives)
+│   ├── tools.py        # WebSearchTool + WebBrowseTool (Tavily Search & Extract)
 │   ├── templates.py    # Report templates (detailed, summary, academic)
 │   └── utils.py        # Multi-key environment loader + helpers
+├── assets/             # Screenshots for README
 ├── examples/
 │   └── run_agent.py    # Example usage script (auto-detects provider)
+├── data/               # Session storage (auto-created, gitignored)
 ├── test_agent.py       # Validation tests
-├── streamlit_app.py    # Streamlit web UI with provider selection
+├── streamlit_app.py    # Streamlit web UI with history sidebar
 ├── requirements.txt
 ├── .env.template
 └── README.md
@@ -234,6 +254,36 @@ agent = DeepResearchAgent(
     max_iterations=5,   # more cycles = deeper research (default: 3)
 )
 ```
+
+### Deep Browse
+
+When enabled, the agent extracts full page content from each search result URL via Tavily Extract. This gives the LLM access to complete articles instead of just snippets, producing significantly richer reports.
+
+```python
+agent = DeepResearchAgent(
+    llm_provider="groq",
+    llm_api_key=key,
+    search_api_key=tavily_key,
+    deep_browse=True,   # fetch full page content (slower but richer)
+)
+```
+
+Toggle via the **Deep Browse** checkbox in the Streamlit sidebar, or pass `deep_browse=True` in code.
+
+## Session History
+
+Research sessions are automatically saved to `./data/sessions.json` after each successful run. The Streamlit sidebar provides a full history panel:
+
+- **Search & filter** — find past sessions by query text
+- **Date grouping** — sessions organized into Starred, Today, Yesterday, This Week, Earlier
+- **Click to load** — instantly view any past report without re-running
+- **Star** — pin important sessions to the top
+- **Delete** — remove sessions you no longer need
+- **Export** — download a full session as markdown with metadata header
+- **Rerun** — re-execute a past query with its original settings
+- **Clear All** — wipe entire history
+
+Sessions persist across browser refreshes and server restarts. No database required — just a local JSON file.
 
 ## How It Works
 
