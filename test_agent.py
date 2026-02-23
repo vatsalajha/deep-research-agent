@@ -40,11 +40,11 @@ def test_environment():
 
     try:
         env = load_environment()
-        masked_anthropic = "***" + env["anthropic_api_key"][-4:]
+        masked_groq = "***" + env["groq_api_key"][-4:]
         masked_tavily = "***" + env["tavily_api_key"][-4:]
         print(f"  \u2705 Environment loaded")
-        print(f"     Anthropic key: {masked_anthropic}")
-        print(f"     Tavily key:    {masked_tavily}")
+        print(f"     Groq key:   {masked_groq}")
+        print(f"     Tavily key: {masked_tavily}")
         print()
         return True
     except ValueError as e:
@@ -88,7 +88,7 @@ def test_agent_init():
     try:
         env = load_environment()
         agent = DeepResearchAgent(
-            anthropic_key=env["anthropic_api_key"],
+            groq_api_key=env["groq_api_key"],
             tavily_key=env["tavily_api_key"],
             max_iterations=2,
         )
@@ -121,7 +121,7 @@ def test_templates():
 
     env = load_environment()
     agent = DeepResearchAgent(
-        anthropic_key=env["anthropic_api_key"],
+        groq_api_key=env["groq_api_key"],
         tavily_key=env["tavily_api_key"],
     )
     try:

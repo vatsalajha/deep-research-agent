@@ -31,7 +31,7 @@ def main() -> None:
     env = load_environment()
 
     agent = DeepResearchAgent(
-        anthropic_key=env["anthropic_api_key"],
+        groq_api_key=env["groq_api_key"],
         tavily_key=env["tavily_api_key"],
         max_iterations=3,
     )

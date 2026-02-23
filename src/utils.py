@@ -6,23 +6,23 @@ def load_environment() -> dict[str, str]:
     """Load environment variables from .env file.
 
     Returns:
-        Dictionary with anthropic_api_key and tavily_api_key.
+        Dictionary with groq_api_key and tavily_api_key.
 
     Raises:
         ValueError: If required API keys are missing.
     """
     load_dotenv()
 
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    groq_key = os.getenv("GROQ_API_KEY")
     tavily_key = os.getenv("TAVILY_API_KEY")
 
-    if not anthropic_key:
-        raise ValueError("ANTHROPIC_API_KEY not found in environment")
+    if not groq_key:
+        raise ValueError("GROQ_API_KEY not found in environment")
     if not tavily_key:
         raise ValueError("TAVILY_API_KEY not found in environment")
 
     return {
-        "anthropic_api_key": anthropic_key,
+        "groq_api_key": groq_key,
         "tavily_api_key": tavily_key,
     }
 

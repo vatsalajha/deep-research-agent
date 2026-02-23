@@ -2,7 +2,9 @@
 
 import os
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
+from langchain_groq import ChatGroq
 from langgraph.graph import END, StateGraph
 
 from src.nodes import (
@@ -16,39 +18,62 @@ from src.templates import VALID_STYLES
 from src.tools import WebSearchTool
 
 
+def create_llm(
+    groq_api_key: str,
+    model: str = "llama-3.3-70b-versatile",
+    temperature: float = 0.7,
+) -> BaseChatModel:
+    """Create a LangChain chat model.
+
+    Args:
+        groq_api_key: Groq API key.
+        model: Model identifier (default: llama-3.3-70b-versatile).
+        temperature: Sampling temperature.
+
+    Returns:
+        A LangChain chat model instance.
+    """
+    return ChatGroq(
+        model=model,
+        api_key=groq_api_key,
+        temperature=temperature,
+    )
+
+
 class DeepResearchAgent:
     """Orchestrates the full research pipeline via a LangGraph state graph.
 
     Flow:
-        analyze_query → search → synthesize ─┬─→ generate_report → END
-                                  ↑           │
-                                  └───────────┘  (needs more research)
+        analyze_query -> search -> synthesize -+-> generate_report -> END
+                           ^                   |
+                           +-------------------+  (needs more research)
 
     Args:
-        anthropic_key: Anthropic API key.
+        groq_api_key: Groq API key for LLM inference.
         tavily_key: Tavily web-search API key.
         max_iterations: Maximum search-synthesize cycles (default 3).
+        model: LLM model identifier (default: llama-3.3-70b-versatile).
     """
 
     def __init__(
         self,
-        anthropic_key: str,
+        groq_api_key: str,
         tavily_key: str,
         max_iterations: int = 3,
+        model: str = "llama-3.3-70b-versatile",
     ) -> None:
-        self.anthropic_key = anthropic_key
-        self.tavily_key = tavily_key
         self.max_iterations = max_iterations
         self.search_tool = WebSearchTool(tavily_key)
+        self.llm = create_llm(groq_api_key, model=model)
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
         """Build and compile the LangGraph execution graph."""
-        # Create node functions
-        query_analyzer = create_query_analyzer(self.anthropic_key)
+        # Create node functions — all share the same LLM instance
+        query_analyzer = create_query_analyzer(self.llm)
         web_searcher = create_web_searcher(self.search_tool)
-        synthesizer = create_synthesizer(self.anthropic_key)
-        report_generator = create_report_generator(self.anthropic_key)
+        synthesizer = create_synthesizer(self.llm)
+        report_generator = create_report_generator(self.llm)
 
         # Assemble graph
         graph = StateGraph(AgentState)

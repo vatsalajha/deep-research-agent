@@ -9,6 +9,7 @@ An intelligent research agent built with [LangGraph](https://github.com/langchai
 - LLM-powered synthesis that decides when research is sufficient
 - Comprehensive report generation with inline citations and source lists
 - Configurable research depth (number of iterations, results per query)
+- Multiple report styles: detailed, summary, academic
 
 ## Architecture
 
@@ -28,7 +29,7 @@ analyze_query → search → synthesize ─┬→ generate_report → END
 ## Prerequisites
 
 - Python 3.10+
-- [Anthropic API key](https://console.anthropic.com/)
+- [Groq API key](https://console.groq.com/keys) (free tier available)
 - [Tavily API key](https://tavily.com/) (free tier: 1,000 searches/month)
 
 ## Installation
@@ -43,7 +44,7 @@ pip install -r requirements.txt
 
 ## API Keys Setup
 
-1. **Anthropic** — Sign up at [console.anthropic.com](https://console.anthropic.com/) and create an API key.
+1. **Groq** — Sign up at [console.groq.com](https://console.groq.com/keys) and create an API key.
 2. **Tavily** — Sign up at [tavily.com](https://tavily.com/) and grab your API key (free tier available).
 
 Then create your `.env` file:
@@ -55,7 +56,7 @@ cp .env.template .env
 Edit `.env` and paste your keys:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
 TAVILY_API_KEY=tvly-...
 ```
 
@@ -84,7 +85,7 @@ from src.utils import load_environment
 env = load_environment()
 
 agent = DeepResearchAgent(
-    anthropic_key=env["anthropic_api_key"],
+    groq_api_key=env["groq_api_key"],
     tavily_key=env["tavily_api_key"],
     max_iterations=3,
 )
@@ -117,6 +118,7 @@ deep-research-agent/
 │   ├── state.py        # AgentState TypedDict definition
 │   ├── nodes.py        # 4 node functions (analyze, search, synthesize, report)
 │   ├── tools.py        # WebSearchTool wrapper around Tavily
+│   ├── templates.py    # Report templates (detailed, summary, academic)
 │   └── utils.py        # Environment loader + helpers
 ├── examples/
 │   └── run_agent.py    # Example usage script
@@ -142,7 +144,7 @@ result = agent.run("my query", report_style="academic")
 
 ```python
 agent = DeepResearchAgent(
-    anthropic_key=key,
+    groq_api_key=key,
     tavily_key=key,
     max_iterations=5,   # more cycles = deeper research (default: 3)
 )
@@ -150,20 +152,28 @@ agent = DeepResearchAgent(
 
 ### Search results per query
 
-In `src/nodes.py`, the web searcher calls `batch_search(queries, max_results=5)`. Adjust `max_results` for more or fewer sources per query.
+In `src/nodes.py`, the web searcher calls `batch_search(queries, max_results=3)`. Adjust `max_results` for more or fewer sources per query.
 
 ### LLM model
 
-Each node in `src/nodes.py` uses `claude-3-5-sonnet-20241022`. Change the `model` parameter to use a different Claude model.
+The default model is `llama-3.3-70b-versatile` via Groq. You can change it when creating the agent:
+
+```python
+agent = DeepResearchAgent(
+    groq_api_key=key,
+    tavily_key=key,
+    model="llama-3.1-8b-instant",  # faster, smaller model
+)
+```
 
 ## How It Works
 
 1. **User submits a query** — e.g. "How is AI being used to combat climate change?"
-2. **Query analysis** — Claude breaks this into specific searches like "AI climate change mitigation 2024", "machine learning carbon emissions reduction", etc.
+2. **Query analysis** — The LLM breaks this into specific searches like "AI climate change mitigation 2024", "machine learning carbon emissions reduction", etc.
 3. **Web search** — Tavily searches the web and returns titles, URLs, and content snippets.
-4. **Synthesis** — Claude reviews all results, checks for coverage gaps, and either requests more searches or marks research as complete.
+4. **Synthesis** — The LLM reviews all results, checks for coverage gaps, and either requests more searches or marks research as complete.
 5. **Iteration** — Steps 3-4 repeat until coverage is sufficient or `max_iterations` is reached.
-6. **Report generation** — Claude synthesizes everything into a structured report with inline citations.
+6. **Report generation** — The LLM synthesizes everything into a structured report with inline citations.
 
 ## Example Report Structure
 
@@ -193,26 +203,19 @@ Each node in `src/nodes.py` uses `claude-3-5-sonnet-20241022`. Change the `model
 
 | Problem | Solution |
 |---------|----------|
-| `ANTHROPIC_API_KEY not found` | Check `.env` exists in project root with the key set |
+| `GROQ_API_KEY not found` | Check `.env` exists in project root with the key set |
 | `TAVILY_API_KEY not found` | Get a free key at [tavily.com](https://tavily.com/) |
 | `ModuleNotFoundError` | Run `pip install -r requirements.txt` with venv activated |
 | Empty search results | Check internet connection and Tavily API quota |
 | Poor report quality | Increase `max_iterations` or `max_results` for more sources |
+| Token limit errors | Reduce `max_results` or `max_iterations` for shorter prompts |
 
 ## Performance Notes
 
 - Each search-synthesize cycle takes ~5-10 seconds (API calls + LLM reasoning)
-- A full 3-iteration research run typically completes in 30-60 seconds
+- A full 2-iteration research run typically completes in 20-40 seconds
 - Tavily free tier allows 1,000 searches/month
-
-## Future Improvements
-
-- Streaming report generation for real-time output
-- Search result caching to avoid duplicate API calls
-- Support for additional search providers (Exa, SerpAPI)
-- Custom report templates (academic, executive summary, technical brief)
-- CLI interface with configurable options
-- Web UI for interactive research sessions
+- Groq free tier has rate limits — reduce `max_iterations` if hitting TPM limits
 
 ## License
 

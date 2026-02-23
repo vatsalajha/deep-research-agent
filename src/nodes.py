@@ -2,7 +2,7 @@
 
 import json
 
-from langchain_anthropic import ChatAnthropic
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.state import AgentState
@@ -10,23 +10,18 @@ from src.templates import TEMPLATES
 from src.tools import WebSearchTool
 
 
-def create_query_analyzer(api_key: str):
+def create_query_analyzer(llm: BaseChatModel):
     """Create the query analysis node.
 
     This is the first node in the graph. It takes the user's research
     question and breaks it into 3-5 targeted search queries.
 
     Args:
-        api_key: Anthropic API key.
+        llm: A LangChain chat model instance.
 
     Returns:
         A node function that accepts and returns AgentState.
     """
-    llm = ChatAnthropic(
-        model="claude-3-5-sonnet-20241022",
-        api_key=api_key,
-        temperature=0.7,
-    )
 
     def query_analyzer(state: AgentState) -> dict:
         """Analyze the user query and produce search queries."""
@@ -90,7 +85,7 @@ def create_web_searcher(search_tool: WebSearchTool):
 
         if new_queries:
             print(f"\nSearching for: {new_queries}")
-            new_results = search_tool.batch_search(new_queries, max_results=5)
+            new_results = search_tool.batch_search(new_queries, max_results=3)
             existing_results = {**existing_results, **new_results}
 
         total_sources = sum(len(v) for v in existing_results.values())
@@ -105,24 +100,19 @@ def create_web_searcher(search_tool: WebSearchTool):
     return web_searcher
 
 
-def create_synthesizer(api_key: str):
+def create_synthesizer(llm: BaseChatModel):
     """Create the synthesis and gap-analysis node.
 
-    After searches complete, this node asks Claude to evaluate whether
+    After searches complete, this node asks the LLM to evaluate whether
     the collected results are sufficient or if additional searches are
     needed. It controls the research loop.
 
     Args:
-        api_key: Anthropic API key.
+        llm: A LangChain chat model instance.
 
     Returns:
         A node function that accepts and returns AgentState.
     """
-    llm = ChatAnthropic(
-        model="claude-3-5-sonnet-20241022",
-        api_key=api_key,
-        temperature=0.5,
-    )
 
     def synthesizer(state: AgentState) -> dict:
         """Analyze search results and decide if more research is needed."""
@@ -197,24 +187,19 @@ Respond ONLY with valid JSON (no markdown fencing):
     return synthesizer
 
 
-def create_report_generator(api_key: str):
+def create_report_generator(llm: BaseChatModel):
     """Create the final report generation node.
 
     This is the terminal node. It takes all accumulated search results,
-    compiles a numbered source list, and asks Claude to produce a
+    compiles a numbered source list, and asks the LLM to produce a
     structured, citation-rich research report.
 
     Args:
-        api_key: Anthropic API key.
+        llm: A LangChain chat model instance.
 
     Returns:
         A node function that accepts and returns AgentState.
     """
-    llm = ChatAnthropic(
-        model="claude-3-5-sonnet-20241022",
-        api_key=api_key,
-        temperature=0.7,
-    )
 
     def report_generator(state: AgentState) -> dict:
         """Generate a comprehensive, cited report from all research."""
@@ -238,12 +223,14 @@ def create_report_generator(api_key: str):
             f"[{s['id']}] {s['title']} ({s['url']})" for s in sources
         )
 
-        # Format full research content
+        # Format full research content (truncate to stay within token limits)
         research_text = ""
+        max_content_chars = 500  # per result, keeps total prompt manageable
         for query, results in search_results.items():
             research_text += f"\n## Search: {query}\n"
             for result in results:
-                research_text += f"\n{result['title']}\n{result['content']}\n"
+                content = result["content"][:max_content_chars]
+                research_text += f"\n{result['title']}\n{content}\n"
 
         # Select report template based on style
         style = state.get("report_style", "detailed")
