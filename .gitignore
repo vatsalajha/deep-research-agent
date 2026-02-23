@@ -28,6 +28,7 @@ dist/
 Thumbs.db
 
 # Project
+data/
 reports/
 Start_here.md
 Quick_reference.md

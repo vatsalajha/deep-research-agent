@@ -155,6 +155,40 @@ class WebSearchTool:
 #         return results
 
 
+class WebBrowseTool:
+    """Extract full page content from URLs using Tavily Extract.
+
+    Uses the same Tavily API key as the search tool. Fetches and returns
+    the full text content of web pages, enriching search snippets with
+    complete article text.
+    """
+
+    def __init__(self, api_key: str) -> None:
+        self.client = TavilyClient(api_key=api_key)
+
+    def browse(self, urls: list[str]) -> dict[str, str]:
+        """Extract full content from a list of URLs.
+
+        Args:
+            urls: List of URLs to extract content from.
+
+        Returns:
+            Mapping of URL to its extracted text content.
+        """
+        if not urls:
+            return {}
+        contents: dict[str, str] = {}
+        for url in urls:
+            try:
+                response = self.client.extract(urls=[url])
+                for item in response.get("results", []):
+                    contents[item.get("url", url)] = item.get("raw_content", "")
+            except Exception as e:
+                print(f"Browse error for '{url}': {e}")
+                contents[url] = ""
+        return contents
+
+
 def create_search_tool(provider: str = "tavily", api_key: str | None = None):
     """Factory to create a search tool for the given provider.
 

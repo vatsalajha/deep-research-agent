@@ -75,15 +75,17 @@ Respond ONLY with valid JSON (no markdown fencing):
     return query_analyzer
 
 
-def create_web_searcher(search_tool: WebSearchTool, max_results: int = 3):
+def create_web_searcher(search_tool: WebSearchTool, max_results: int = 3, browse_tool=None):
     """Create the web search execution node.
 
     Runs searches for any queries that haven't been searched yet,
     then merges the new results into the existing search_results dict.
+    If a browse_tool is provided, fetches full page content for each result URL.
 
     Args:
         search_tool: An initialized WebSearchTool instance.
         max_results: Number of results to fetch per query (default 3).
+        browse_tool: Optional WebBrowseTool for deep page content extraction.
 
     Returns:
         A node function that accepts and returns AgentState.
@@ -100,6 +102,19 @@ def create_web_searcher(search_tool: WebSearchTool, max_results: int = 3):
         if new_queries:
             print(f"\nSearching for: {new_queries}")
             new_results = search_tool.batch_search(new_queries, max_results=max_results)
+
+            # Deep browse: fetch full page content for each result URL
+            if browse_tool:
+                for query, results in new_results.items():
+                    urls = [r["url"] for r in results if r.get("url")]
+                    if urls:
+                        print(f"  Browsing {len(urls)} URLs for '{query}'...")
+                        browsed = browse_tool.browse(urls)
+                        for result in results:
+                            full_content = browsed.get(result["url"], "")
+                            if full_content:
+                                result["raw_content"] = full_content
+
             existing_results = {**existing_results, **new_results}
 
         total_sources = sum(len(v) for v in existing_results.values())

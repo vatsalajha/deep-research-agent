@@ -21,7 +21,7 @@ from src.nodes import (
 )
 from src.state import AgentState
 from src.templates import VALID_STYLES
-from src.tools import WebSearchTool
+from src.tools import WebBrowseTool, WebSearchTool
 
 
 # ── Provider configuration ────────────────────────────────────────────────
@@ -163,6 +163,7 @@ class DeepResearchAgent:
         max_results: int = 3,
         system_prompt: str | None = None,
         temperature: float = 0.7,
+        deep_browse: bool = False,
         # ── Deprecated kwargs for backward compatibility ──
         groq_api_key: str | None = None,
         tavily_key: str | None = None,
@@ -201,7 +202,9 @@ class DeepResearchAgent:
         self.max_iterations = max_iterations
         self.max_results = max_results
         self.system_prompt = system_prompt
+        self.deep_browse = deep_browse
         self.search_tool = WebSearchTool(search_api_key)
+        self.browse_tool = WebBrowseTool(search_api_key) if deep_browse else None
         self.llm = create_llm(
             provider=llm_provider,
             api_key=llm_api_key,
@@ -214,7 +217,7 @@ class DeepResearchAgent:
         """Build and compile the LangGraph execution graph."""
         # Create node functions — all share the same LLM instance
         query_analyzer = create_query_analyzer(self.llm, system_prompt=self.system_prompt)
-        web_searcher = create_web_searcher(self.search_tool, max_results=self.max_results)
+        web_searcher = create_web_searcher(self.search_tool, max_results=self.max_results, browse_tool=self.browse_tool)
         synthesizer = create_synthesizer(self.llm, system_prompt=self.system_prompt)
         report_generator = create_report_generator(self.llm, system_prompt=self.system_prompt)
 
